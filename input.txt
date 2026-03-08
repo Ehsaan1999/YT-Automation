@@ -1,0 +1,11 @@
+# YouTube Clip Extractor — Input File
+# Format:  URL | START_TIME | END_TIME
+#
+# Time formats accepted:
+#   HH:MM:SS  →  00:01:30
+#   MM:SS     →  1:30
+#   seconds   →  90
+#
+# Examples (remove the # to activate):
+# https://www.youtube.com/watch?v=dQw4w9WgXcQ | 00:00:10 | 00:00:40
+# https://www.youtube.com/watch?v=dQw4w9WgXcQ | 1:00 | 2:30

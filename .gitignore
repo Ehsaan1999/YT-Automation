@@ -1,0 +1,16 @@
+# Ignore the large ImageMagick folder
+ImageMagick/
+
+# Ignore common large media files
+*.mp4
+*.mov
+*.avi
+*.mkv
+
+# Ignore Python environment/cache
+__pycache__/
+venv/
+.env
+
+ffmpeg/
+*.exe
