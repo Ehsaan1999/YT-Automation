@@ -1,16 +1,29 @@
-# Ignore the large ImageMagick folder
-ImageMagick/
+# API keys and secrets — never commit
+horror_gen/config.json
 
-# Ignore common large media files
+# Large portable tools
+ImageMagick/
+ffmpeg/
+*.exe
+
+# Generated outputs
+clips/
+horror_videos/
 *.mp4
 *.mov
 *.avi
 *.mkv
+*.mp3
+*.png
+*.jpg
+*.jpeg
 
-# Ignore Python environment/cache
+# Temp processing files
+_clips_tmp/
+_concat_list.txt
+_norm_*.mp4
+
+# Python
 __pycache__/
 venv/
 .env
-
-ffmpeg/
-*.exe

@@ -1,0 +1,12 @@
+{
+  "unturf_key": "YOUR_GROQ_API_KEY",
+  "hf_token": "YOUR_HUGGINGFACE_TOKEN",
+  "hf_model": "stabilityai/stable-diffusion-xl-base-1.0",
+  "use_dalle3": false,
+  "openai_key": "",
+  "tts_provider": "edge",
+  "tts_voice_edge": "Ryan — British Male (recommended)",
+  "tts_rate": "Slow (eerie)",
+  "default_scenes": 6,
+  "show_subtitles": true
+}
