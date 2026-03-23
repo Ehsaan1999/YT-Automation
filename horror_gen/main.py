@@ -6,6 +6,7 @@ Run:  python horror_gen/main.py
 import json
 import os
 import re
+import subprocess
 import sys
 import threading
 import tkinter as tk
@@ -77,6 +78,7 @@ def run_generation(cfg: dict, log=print) -> None:
         output_dir = work_dir,
         hf_token   = cfg.get("hf_token", ""),
         hf_model   = cfg.get("hf_model", "stabilityai/stable-diffusion-xl-base-1.0"),
+        horde_key  = cfg.get("horde_key", "").strip() or ig.HORDE_ANON_KEY,
         log        = log,
     )
 
@@ -114,6 +116,7 @@ def run_generation(cfg: dict, log=print) -> None:
     log("  Done!")
     log(f"  Saved : {output_path}")
     log("=" * 48)
+    return output_path
 
 
 # ── Icon ───────────────────────────────────────────────────────────────────────
@@ -306,6 +309,18 @@ def build_gui() -> None:
                  state="readonly", style="Dark.TCombobox",
                  width=14).pack(side=tk.LEFT, padx=(4, 0))
 
+    # ── STABLE HORDE KEY ─────────────────────────────────────────────────────
+    section("STABLE HORDE KEY  (optional — portrait images)")
+
+    horde_key_var = tk.StringVar(value=cfg.get("horde_key", ""))
+    tk.Entry(left, textvariable=horde_key_var, bg=ENTRY, fg=FG,
+             insertbackground=FG, relief="flat",
+             highlightthickness=1, highlightbackground=BORDER).pack(
+        fill=tk.X, padx=14, pady=(0, 2))
+    tk.Label(left, text="Free at stablehorde.net/register  —  unlocks 9:16 portrait",
+             bg=PANEL, fg=FG_DIM, font=("Segoe UI", 7)).pack(
+        anchor="w", padx=14, pady=(0, 4))
+
     # ── GROQ API KEY ─────────────────────────────────────────────────────────
     section("GROQ API KEY  (free — script generation)")
 
@@ -351,7 +366,25 @@ def build_gui() -> None:
                         font=("Segoe UI", 11, "bold"),
                         pady=10, cursor="hand2", bd=0,
                         activebackground="#6b0000", activeforeground="white")
-    gen_btn.pack(fill=tk.X, padx=14, pady=(0, 14))
+    gen_btn.pack(fill=tk.X, padx=14, pady=(0, 6))
+
+    last_video_path = [None]   # mutable container so worker thread can set it
+
+    open_btn = tk.Button(left, text="▶  OPEN VIDEO",
+                         bg="#1a3a1a", fg="#00cc44", relief="flat",
+                         font=("Segoe UI", 9),
+                         pady=6, cursor="hand2", bd=0, state="disabled",
+                         activebackground="#0d2a0d", activeforeground="#00cc44")
+    open_btn.pack(fill=tk.X, padx=14, pady=(0, 14))
+
+    def open_last_video():
+        path = last_video_path[0]
+        if path and os.path.exists(path):
+            subprocess.Popen(["start", "", path], shell=True)
+        else:
+            status_var.set("No video found.")
+
+    open_btn.config(command=open_last_video)
 
     # ── Logic ────────────────────────────────────────────────────────────────
 
@@ -387,6 +420,7 @@ def build_gui() -> None:
             "pitch":          pitch_var.get(),
             "output_dir":     out_var.get().strip(),
             "unturf_key":     ukey,
+            "horde_key":      horde_key_var.get().strip(),
             "last_topic":     topic,
             "default_scenes": scenes_var.get(),
         }
@@ -400,8 +434,10 @@ def build_gui() -> None:
 
         def worker():
             try:
-                run_generation(current_cfg, log)
+                video_path = run_generation(current_cfg, log)
+                last_video_path[0] = video_path
                 root.after(0, lambda: status_var.set("Done!"))
+                root.after(0, lambda: open_btn.config(state="normal", bg="#1a3a1a"))
             except Exception as e:
                 msg = str(e)
                 log(f"\nERROR: {msg}")
