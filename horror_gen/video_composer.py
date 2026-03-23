@@ -73,10 +73,10 @@ def generate_ass_subtitles(
         "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
         "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
         "Alignment, MarginL, MarginR, MarginV, Encoding\n"
-        # White text, thick black outline, bottom-centre, bold
+        # White text, thick black outline, middle-centre, bold
         f"Style: Default,Arial,{font_size},"
         "&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
-        f"-1,0,0,0,100,100,0,0,1,4,2,2,40,40,{margin_v},1\n"
+        f"-1,0,0,0,100,100,0,0,1,4,2,5,40,40,{margin_v},1\n"
         "\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"

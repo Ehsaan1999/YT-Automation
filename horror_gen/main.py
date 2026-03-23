@@ -51,10 +51,10 @@ def run_generation(cfg: dict, log=print) -> None:
     num_scenes = cfg["num_scenes"]
     output_dir = cfg["output_dir"]
 
-    log("=" * 50)
+    log("=" * 48)
     log(f"  Topic  : {topic}")
     log(f"  Scenes : {num_scenes}")
-    log("=" * 50)
+    log("=" * 48)
 
     # 1. Script
     log("\n[1/4] Writing horror script...")
@@ -62,7 +62,8 @@ def run_generation(cfg: dict, log=print) -> None:
     title     = data["title"]
     narration = data["narration"]
     prompts   = data["image_prompts"]
-    log(f"  Title : {title}  ({len(narration.split())} words, {len(prompts)} scenes)")
+    log(f"  Title  : {title}")
+    log(f"  Words  : {len(narration.split())}  Scenes: {len(prompts)}")
 
     work_dir = os.path.join(output_dir, sanitize(title))
     os.makedirs(work_dir, exist_ok=True)
@@ -75,7 +76,7 @@ def run_generation(cfg: dict, log=print) -> None:
         prompts    = prompts,
         output_dir = work_dir,
         hf_token   = cfg.get("hf_token", ""),
-        hf_model   = cfg.get("hf_model", "black-forest-labs/FLUX.1-dev"),
+        hf_model   = cfg.get("hf_model", "stabilityai/stable-diffusion-xl-base-1.0"),
         log        = log,
     )
 
@@ -86,8 +87,9 @@ def run_generation(cfg: dict, log=print) -> None:
         text        = narration,
         output_path = audio_path,
         provider    = "edge",
-        voice       = tg.EDGE_VOICES[cfg["voice"]],
-        rate        = tg.RATES[cfg["speed"]],
+        voice       = tg.EDGE_VOICES.get(cfg["voice"], "en-US-AndrewNeural"),
+        rate        = tg.RATES.get(cfg["speed"], "-3%"),
+        pitch       = tg.PITCHES.get(cfg.get("pitch", "Slightly deep"), "-5Hz"),
         log         = log,
     )
     duration = tg.get_audio_duration(FFMPEG_EXE, audio_path)
@@ -108,10 +110,36 @@ def run_generation(cfg: dict, log=print) -> None:
         log            = log,
     )
 
-    log("\n" + "=" * 50)
+    log("\n" + "=" * 48)
     log("  Done!")
     log(f"  Saved : {output_path}")
-    log("=" * 50)
+    log("=" * 48)
+
+
+# ── Icon ───────────────────────────────────────────────────────────────────────
+
+def _set_icon(root: tk.Tk) -> None:
+    """Set a simple horror-themed app icon using PIL if available."""
+    try:
+        from PIL import Image, ImageDraw
+        import tempfile
+
+        size = 64
+        img  = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        d    = ImageDraw.Draw(img)
+        d.ellipse([2, 2, size - 2, size - 2], fill=(139, 0, 0, 255))
+        # Simple cross mark
+        m = size // 2
+        d.line([m - 12, m - 12, m + 12, m + 12], fill="white", width=5)
+        d.line([m + 12, m - 12, m - 12, m + 12], fill="white", width=5)
+
+        ico_path = os.path.join(tempfile.gettempdir(), "_horror_icon.png")
+        img.save(ico_path)
+        photo = tk.PhotoImage(file=ico_path)
+        root.iconphoto(True, photo)
+        root._icon_ref = photo  # prevent GC
+    except Exception:
+        pass
 
 
 # ── GUI ────────────────────────────────────────────────────────────────────────
@@ -122,191 +150,211 @@ def build_gui() -> None:
     root = tk.Tk()
     root.title("Horror Video Generator")
     root.resizable(True, True)
-    root.minsize(560, 600)
+    root.minsize(720, 520)
     root.configure(bg="#1a1a1a")
+    _set_icon(root)
 
     # Colour palette
     BG      = "#1a1a1a"
-    CARD    = "#242424"
+    PANEL   = "#1e1e1e"
     ACCENT  = "#8B0000"
     FG      = "#e8e8e8"
-    FG_DIM  = "#888888"
-    BORDER  = "#333333"
-    ENTRY   = "#2e2e2e"
+    FG_DIM  = "#666666"
+    BORDER  = "#2c2c2c"
+    ENTRY   = "#2a2a2a"
+    LOG_BG  = "#0d0d0d"
+    LOG_FG  = "#00cc44"
 
-    pad = dict(padx=16, pady=6)
-
-    def card(parent, title=None):
-        outer = tk.Frame(parent, bg=BORDER, pady=1)
-        outer.pack(fill=tk.X, padx=14, pady=5)
-        inner = tk.Frame(outer, bg=CARD, padx=14, pady=10)
-        inner.pack(fill=tk.X)
-        inner.columnconfigure(1, weight=1)
-        if title:
-            tk.Label(inner, text=title.upper(), bg=CARD, fg=FG_DIM,
-                     font=("Segoe UI", 8, "bold")).grid(
-                row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
-        return inner
-
-    def row(parent, label, widget_fn, r, hint=None):
-        offset = 1 if parent.grid_size()[1] > 0 else 0
-        tk.Label(parent, text=label, bg=CARD, fg=FG, anchor="w", width=14).grid(
-            row=r + offset, column=0, sticky="w", pady=4)
-        w = widget_fn(parent)
-        w.grid(row=r + offset, column=1, sticky="ew", padx=(8, 0), pady=4)
-        if hint:
-            tk.Label(parent, text=hint, bg=CARD, fg=FG_DIM, font=("Segoe UI", 8)).grid(
-                row=r + offset + 1, column=1, sticky="w", padx=(8, 0))
-        return w
-
-    def entry(parent, var, show=""):
-        e = tk.Entry(parent, textvariable=var, bg=ENTRY, fg=FG,
-                     insertbackground=FG, relief="flat",
-                     highlightthickness=1, highlightbackground=BORDER,
-                     show=show)
-        return e
-
-    def combo(parent, var, values):
-        c = ttk.Combobox(parent, textvariable=var, values=values,
-                         state="readonly", width=30)
-        c.configure(style="Dark.TCombobox")
-        return c
-
+    # ttk styles
     style = ttk.Style()
     style.theme_use("default")
     style.configure("Dark.TCombobox",
                     fieldbackground=ENTRY, background=ENTRY,
                     foreground=FG, selectbackground=ACCENT,
-                    arrowcolor=FG)
+                    arrowcolor=FG_DIM)
+    style.configure("TSpinbox",
+                    fieldbackground=ENTRY, background=ENTRY,
+                    foreground=FG, arrowcolor=FG_DIM)
 
-    # ── Header ──────────────────────────────────────────────────────────────────
-    hdr = tk.Frame(root, bg=ACCENT, pady=14)
-    hdr.pack(fill=tk.X)
-    tk.Label(hdr, text="HORROR VIDEO GENERATOR", bg=ACCENT, fg="white",
-             font=("Segoe UI", 14, "bold")).pack()
-    tk.Label(hdr, text="AI-generated cinematic horror shorts", bg=ACCENT, fg="#ffaaaa",
-             font=("Segoe UI", 9)).pack()
+    # ── Root layout ──────────────────────────────────────────────────────────
 
-    scroll_canvas = tk.Canvas(root, bg=BG, highlightthickness=0)
-    vsb = ttk.Scrollbar(root, orient="vertical", command=scroll_canvas.yview)
-    scroll_canvas.configure(yscrollcommand=vsb.set)
-    vsb.pack(side=tk.RIGHT, fill=tk.Y)
-    scroll_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-    body = tk.Frame(scroll_canvas, bg=BG)
-    body_id = scroll_canvas.create_window((0, 0), window=body, anchor="nw")
-    body.bind("<Configure>", lambda e: scroll_canvas.configure(
-        scrollregion=scroll_canvas.bbox("all")))
-    scroll_canvas.bind("<Configure>", lambda e: scroll_canvas.itemconfig(
-        body_id, width=e.width))
+    # Header bar
+    hdr = tk.Frame(root, bg=ACCENT, pady=8)
+    hdr.pack(fill=tk.X, side=tk.TOP)
+    tk.Label(hdr, text="HORROR VIDEO GENERATOR",
+             bg=ACCENT, fg="white", font=("Segoe UI", 12, "bold")).pack()
+    tk.Label(hdr, text="AI-generated cinematic horror shorts",
+             bg=ACCENT, fg="#ffbbbb", font=("Segoe UI", 8)).pack()
 
-    # ── Topic ───────────────────────────────────────────────────────────────────
-    c1 = card(body, "Your Video")
+    # Status bar (bottom)
+    status_var = tk.StringVar(value="Ready")
+    tk.Label(root, textvariable=status_var, bg="#0f0f0f", fg=FG_DIM,
+             font=("Consolas", 8), anchor="w", padx=10).pack(
+        side=tk.BOTTOM, fill=tk.X, ipady=3)
+
+    # Body: 25 | 75
+    body = tk.Frame(root, bg=BG)
+    body.pack(fill=tk.BOTH, expand=True, side=tk.TOP)
+    body.columnconfigure(0, weight=1, minsize=210)
+    body.columnconfigure(1, weight=3)
+    body.rowconfigure(0, weight=1)
+
+    # Divider
+    tk.Frame(body, bg=BORDER, width=1).grid(row=0, column=0, sticky="nse")
+
+    # Left settings panel
+    left = tk.Frame(body, bg=PANEL)
+    left.grid(row=0, column=0, sticky="nsew")
+
+    # Right log panel
+    right = tk.Frame(body, bg=LOG_BG)
+    right.grid(row=0, column=1, sticky="nsew")
+    right.rowconfigure(0, weight=1)
+    right.columnconfigure(0, weight=1)
+
+    # ── Log box ──────────────────────────────────────────────────────────────
+    log_box = scrolledtext.ScrolledText(
+        right, state="disabled", wrap=tk.WORD,
+        font=("Consolas", 9),
+        bg=LOG_BG, fg=LOG_FG, insertbackground=LOG_FG,
+        relief="flat", highlightthickness=0,
+        padx=12, pady=10)
+    log_box.grid(row=0, column=0, sticky="nsew")
+
+    # ── Left panel helpers ───────────────────────────────────────────────────
+
+    def section(text: str) -> None:
+        tk.Label(left, text=text, bg=PANEL, fg=ACCENT,
+                 font=("Segoe UI", 7, "bold"), anchor="w").pack(
+            fill=tk.X, padx=14, pady=(12, 1))
+        tk.Frame(left, bg=BORDER, height=1).pack(fill=tk.X, padx=14, pady=(0, 6))
+
+    def field(label: str) -> tk.Label:
+        return tk.Label(left, text=label, bg=PANEL, fg=FG,
+                        font=("Segoe UI", 9), anchor="w")
+
+    def mk_entry(var, show="") -> tk.Entry:
+        return tk.Entry(left, textvariable=var, show=show,
+                        bg=ENTRY, fg=FG, insertbackground=FG,
+                        relief="flat", highlightthickness=1,
+                        highlightbackground=BORDER, highlightcolor=ACCENT)
+
+    def mk_combo(var, values) -> ttk.Combobox:
+        return ttk.Combobox(left, textvariable=var, values=values,
+                            state="readonly", style="Dark.TCombobox")
+
+    # ── YOUR VIDEO ───────────────────────────────────────────────────────────
+    section("YOUR VIDEO")
+
     topic_var = tk.StringVar(value=cfg.get("last_topic", ""))
-    tk.Label(c1, text="Topic / Theme", bg=CARD, fg=FG, anchor="w").grid(
-        row=1, column=0, columnspan=2, sticky="w", pady=(0, 2))
-    te = tk.Entry(c1, textvariable=topic_var, bg=ENTRY, fg=FG,
-                  insertbackground=FG, relief="flat",
-                  highlightthickness=1, highlightbackground=BORDER,
-                  font=("Segoe UI", 11))
-    te.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(0, 6))
-    tk.Label(c1, text='e.g.  "alone at a gas station at night"  •  "haunted lighthouse"',
-             bg=CARD, fg=FG_DIM, font=("Segoe UI", 8)).grid(
-        row=3, column=0, columnspan=3, sticky="w")
+    field("Topic / Theme").pack(anchor="w", padx=14)
+    mk_entry(topic_var).pack(fill=tk.X, padx=14, pady=(2, 2))
+    tk.Label(left, text='e.g. "haunted lighthouse"',
+             bg=PANEL, fg=FG_DIM, font=("Segoe UI", 7)).pack(
+        anchor="w", padx=14, pady=(0, 6))
 
-    tk.Label(c1, text="Scenes", bg=CARD, fg=FG, anchor="w").grid(
-        row=4, column=0, sticky="w", pady=(10, 4))
+    sc_row = tk.Frame(left, bg=PANEL)
+    sc_row.pack(fill=tk.X, padx=14, pady=(0, 4))
+    field("Scenes").pack(in_=sc_row, side=tk.LEFT)
     scenes_var = tk.IntVar(value=cfg.get("default_scenes", 6))
-    ttk.Spinbox(c1, from_=3, to=12, textvariable=scenes_var, width=5).grid(
-        row=4, column=1, sticky="w", padx=(8, 0))
+    ttk.Spinbox(sc_row, from_=3, to=12, textvariable=scenes_var,
+                width=4).pack(side=tk.LEFT, padx=(8, 0))
 
     sub_var = tk.BooleanVar(value=cfg.get("subtitles", True))
-    tk.Checkbutton(c1, text="Burn subtitles into video", variable=sub_var,
-                   bg=CARD, fg=FG, selectcolor=ENTRY, activebackground=CARD,
-                   activeforeground=FG).grid(row=5, column=0, columnspan=2,
-                                              sticky="w", pady=(6, 0))
+    tk.Checkbutton(left, text="Burn subtitles (centred)", variable=sub_var,
+                   bg=PANEL, fg=FG, selectcolor=ENTRY,
+                   activebackground=PANEL, activeforeground=FG,
+                   font=("Segoe UI", 9)).pack(anchor="w", padx=14, pady=(4, 0))
 
-    # ── Voice ───────────────────────────────────────────────────────────────────
-    c2 = card(body, "Narration Voice  —  free, no key needed")
-    voice_var = tk.StringVar(value=cfg.get("voice", list(tg.EDGE_VOICES.keys())[0]))
-    speed_var = tk.StringVar(value=cfg.get("speed", "Slow (eerie)"))
+    # ── NARRATION VOICE ──────────────────────────────────────────────────────
+    section("NARRATION VOICE  (free)")
 
-    tk.Label(c2, text="Voice", bg=CARD, fg=FG, anchor="w", width=10).grid(
-        row=1, column=0, sticky="w", pady=4)
-    ttk.Combobox(c2, textvariable=voice_var, values=list(tg.EDGE_VOICES.keys()),
-                 state="readonly").grid(row=1, column=1, sticky="ew", padx=(8, 0))
+    voice_keys = list(tg.EDGE_VOICES.keys())
+    saved_voice = cfg.get("voice", voice_keys[0])
+    if saved_voice not in voice_keys:
+        saved_voice = voice_keys[0]
+    voice_var = tk.StringVar(value=saved_voice)
 
-    tk.Label(c2, text="Speed", bg=CARD, fg=FG, anchor="w", width=10).grid(
-        row=2, column=0, sticky="w", pady=4)
-    ttk.Combobox(c2, textvariable=speed_var, values=list(tg.RATES.keys()),
-                 state="readonly", width=20).grid(row=2, column=1, sticky="w", padx=(8, 0))
+    speed_keys = list(tg.RATES.keys())
+    saved_speed = cfg.get("speed", speed_keys[0])
+    if saved_speed not in speed_keys:
+        saved_speed = speed_keys[0]
+    speed_var = tk.StringVar(value=saved_speed)
 
-    # ── API Key ─────────────────────────────────────────────────────────────────
-    c3 = card(body, "API Key  —  script generation only")
+    pitch_keys = list(tg.PITCHES.keys())
+    saved_pitch = cfg.get("pitch", "Slightly deep")
+    if saved_pitch not in pitch_keys:
+        saved_pitch = pitch_keys[1] if len(pitch_keys) > 1 else pitch_keys[0]
+    pitch_var = tk.StringVar(value=saved_pitch)
+
+    field("Voice").pack(anchor="w", padx=14)
+    mk_combo(voice_var, voice_keys).pack(fill=tk.X, padx=14, pady=(2, 6))
+
+    spd_row = tk.Frame(left, bg=PANEL)
+    spd_row.pack(fill=tk.X, padx=14, pady=(0, 6))
+    tk.Label(spd_row, text="Speed", bg=PANEL, fg=FG,
+             font=("Segoe UI", 9), width=6, anchor="w").pack(side=tk.LEFT)
+    ttk.Combobox(spd_row, textvariable=speed_var, values=speed_keys,
+                 state="readonly", style="Dark.TCombobox",
+                 width=14).pack(side=tk.LEFT, padx=(4, 0))
+
+    pit_row = tk.Frame(left, bg=PANEL)
+    pit_row.pack(fill=tk.X, padx=14, pady=(0, 4))
+    tk.Label(pit_row, text="Pitch", bg=PANEL, fg=FG,
+             font=("Segoe UI", 9), width=6, anchor="w").pack(side=tk.LEFT)
+    ttk.Combobox(pit_row, textvariable=pitch_var, values=pitch_keys,
+                 state="readonly", style="Dark.TCombobox",
+                 width=14).pack(side=tk.LEFT, padx=(4, 0))
+
+    # ── GROQ API KEY ─────────────────────────────────────────────────────────
+    section("GROQ API KEY  (free — script generation)")
+
     unturf_var = tk.StringVar(value=cfg.get("unturf_key", ""))
+    key_row = tk.Frame(left, bg=PANEL)
+    key_row.pack(fill=tk.X, padx=14, pady=(0, 2))
+    key_entry = tk.Entry(key_row, textvariable=unturf_var, show="*",
+                         bg=ENTRY, fg=FG, insertbackground=FG,
+                         relief="flat", highlightthickness=1,
+                         highlightbackground=BORDER, highlightcolor=ACCENT)
+    key_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-    tk.Label(c3, text="Groq API Key", bg=CARD, fg=FG, anchor="w", width=14).grid(
-        row=1, column=0, sticky="w", pady=4)
-    key_entry = tk.Entry(c3, textvariable=unturf_var, show="*", bg=ENTRY, fg=FG,
-                         insertbackground=FG, relief="flat",
-                         highlightthickness=1, highlightbackground=BORDER)
-    key_entry.grid(row=1, column=1, sticky="ew", padx=(8, 4))
     def toggle_key():
         key_entry.config(show="" if key_entry.cget("show") else "*")
-    tk.Button(c3, text="Show", bg=BORDER, fg=FG, relief="flat", command=toggle_key,
-              padx=8).grid(row=1, column=2)
+    tk.Button(key_row, text="Show", bg=BORDER, fg=FG_DIM, relief="flat",
+              command=toggle_key, font=("Segoe UI", 7),
+              padx=6, pady=2, bd=0, cursor="hand2").pack(side=tk.LEFT, padx=(4, 0))
 
-    tk.Label(c3, text="Free  —  get your key at  console.groq.com  (no credit card needed)",
-             bg=CARD, fg=FG_DIM, font=("Segoe UI", 8)).grid(
-        row=2, column=0, columnspan=3, sticky="w", pady=(0, 4))
+    tk.Label(left, text="console.groq.com  —  no credit card needed",
+             bg=PANEL, fg=FG_DIM, font=("Segoe UI", 7)).pack(
+        anchor="w", padx=14, pady=(0, 4))
 
-    def on_save_key():
-        save_config({**load_config(),
-                     "unturf_key": unturf_var.get().strip(),
-                     "hf_token":   cfg.get("hf_token", ""),
-                     "hf_model":   cfg.get("hf_model", "black-forest-labs/FLUX.1-dev")})
-        status_var.set("Key saved.")
-    tk.Button(c3, text="Save Key", bg=ACCENT, fg="white", relief="flat",
-              command=on_save_key, padx=10).grid(row=3, column=1, sticky="e", pady=4)
+    # ── OUTPUT FOLDER ────────────────────────────────────────────────────────
+    section("OUTPUT FOLDER")
 
-    # ── Output folder ───────────────────────────────────────────────────────────
-    c4 = card(body, "Output")
     out_var = tk.StringVar(value=cfg.get("output_dir",
                             os.path.join(PROJECT_DIR, "horror_videos")))
-    tk.Label(c4, text="Save to", bg=CARD, fg=FG, anchor="w", width=10).grid(
-        row=1, column=0, sticky="w", pady=4)
-    tk.Entry(c4, textvariable=out_var, bg=ENTRY, fg=FG, insertbackground=FG,
-             relief="flat", highlightthickness=1, highlightbackground=BORDER).grid(
-        row=1, column=1, sticky="ew", padx=(8, 4))
-    tk.Button(c4, text="Browse", bg=BORDER, fg=FG, relief="flat",
+    out_row = tk.Frame(left, bg=PANEL)
+    out_row.pack(fill=tk.X, padx=14, pady=(0, 4))
+    tk.Entry(out_row, textvariable=out_var, bg=ENTRY, fg=FG,
+             insertbackground=FG, relief="flat",
+             highlightthickness=1, highlightbackground=BORDER).pack(
+        side=tk.LEFT, fill=tk.X, expand=True)
+    tk.Button(out_row, text="…", bg=BORDER, fg=FG_DIM, relief="flat",
               command=lambda: out_var.set(filedialog.askdirectory() or out_var.get()),
-              padx=8).grid(row=1, column=2)
+              font=("Segoe UI", 9), padx=6, pady=2, bd=0,
+              cursor="hand2").pack(side=tk.LEFT, padx=(4, 0))
 
-    # ── Generate button ─────────────────────────────────────────────────────────
-    btn_frame = tk.Frame(body, bg=BG)
-    btn_frame.pack(fill=tk.X, padx=14, pady=8)
-    gen_btn = tk.Button(btn_frame, text="GENERATE HORROR VIDEO",
+    # ── GENERATE BUTTON ──────────────────────────────────────────────────────
+    tk.Frame(left, bg=BORDER, height=1).pack(fill=tk.X, padx=14, pady=(14, 8))
+    gen_btn = tk.Button(left, text="▶  GENERATE",
                         bg=ACCENT, fg="white", relief="flat",
-                        font=("Segoe UI", 12, "bold"),
-                        pady=12, cursor="hand2")
-    gen_btn.pack(fill=tk.X)
+                        font=("Segoe UI", 11, "bold"),
+                        pady=10, cursor="hand2", bd=0,
+                        activebackground="#6b0000", activeforeground="white")
+    gen_btn.pack(fill=tk.X, padx=14, pady=(0, 14))
 
-    # ── Log ─────────────────────────────────────────────────────────────────────
-    log_frame = tk.Frame(body, bg=BG)
-    log_frame.pack(fill=tk.BOTH, expand=True, padx=14, pady=(0, 6))
-    log_box = scrolledtext.ScrolledText(
-        log_frame, state="disabled", wrap=tk.WORD,
-        font=("Consolas", 8), height=12,
-        bg="#0d0d0d", fg="#00cc44", insertbackground=FG,
-        relief="flat", highlightthickness=1, highlightbackground=BORDER)
-    log_box.pack(fill=tk.BOTH, expand=True)
+    # ── Logic ────────────────────────────────────────────────────────────────
 
-    # ── Status bar ──────────────────────────────────────────────────────────────
-    status_var = tk.StringVar(value="Ready")
-    tk.Label(root, textvariable=status_var, bg="#111", fg=FG_DIM,
-             font=("Segoe UI", 8), anchor="w", padx=10).pack(
-        side=tk.BOTTOM, fill=tk.X)
-
-    # ── Logic ───────────────────────────────────────────────────────────────────
     def log(msg: str) -> None:
         def _do():
             log_box.config(state="normal")
@@ -320,10 +368,10 @@ def build_gui() -> None:
         ukey  = unturf_var.get().strip()
 
         if not topic:
-            status_var.set("Please enter a topic.")
+            status_var.set("Enter a topic first.")
             return
         if not ukey:
-            status_var.set("Please enter your Groq API key (free at console.groq.com).")
+            status_var.set("Groq API key required  (console.groq.com — free)")
             return
         if not os.path.exists(FFMPEG_EXE):
             status_var.set(f"ffmpeg not found: {FFMPEG_EXE}")
@@ -331,21 +379,24 @@ def build_gui() -> None:
 
         current_cfg = {
             **load_config(),
-            "topic":       topic,
-            "num_scenes":  scenes_var.get(),
-            "subtitles":   sub_var.get(),
-            "voice":       voice_var.get(),
-            "speed":       speed_var.get(),
-            "output_dir":  out_var.get().strip(),
-            "unturf_key":  ukey,
-            "last_topic":  topic,
+            "topic":          topic,
+            "num_scenes":     scenes_var.get(),
+            "subtitles":      sub_var.get(),
+            "voice":          voice_var.get(),
+            "speed":          speed_var.get(),
+            "pitch":          pitch_var.get(),
+            "output_dir":     out_var.get().strip(),
+            "unturf_key":     ukey,
+            "last_topic":     topic,
             "default_scenes": scenes_var.get(),
         }
         save_config(current_cfg)
 
-        gen_btn.config(state="disabled", text="Generating...")
+        gen_btn.config(state="disabled", text="Generating…")
         status_var.set("Running...")
-        log_box.config(state="normal"); log_box.delete("1.0", tk.END); log_box.config(state="disabled")
+        log_box.config(state="normal")
+        log_box.delete("1.0", tk.END)
+        log_box.config(state="disabled")
 
         def worker():
             try:
@@ -356,7 +407,8 @@ def build_gui() -> None:
                 log(f"\nERROR: {msg}")
                 root.after(0, lambda m=msg: status_var.set(f"Error: {m}"))
             finally:
-                root.after(0, lambda: gen_btn.config(state="normal", text="GENERATE HORROR VIDEO"))
+                root.after(0, lambda: gen_btn.config(
+                    state="normal", text="▶  GENERATE"))
 
         threading.Thread(target=worker, daemon=True).start()
 

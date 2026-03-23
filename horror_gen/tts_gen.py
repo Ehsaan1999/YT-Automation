@@ -22,21 +22,29 @@ SPEECH_BASE_URL = "https://speech.ai.unturf.com/v1"
 
 # ── Edge TTS voice options (fallback) ─────────────────────────────────────────
 EDGE_VOICES = {
-    "Ryan — British Male (recommended)": "en-GB-RyanNeural",
+    "Andrew — US Male (natural)":        "en-US-AndrewNeural",
+    "Brian — US Male (storytelling)":    "en-US-BrianNeural",
+    "Christopher — US Male (deep)":      "en-US-ChristopherNeural",
+    "Guy — US Male (narrator)":          "en-US-GuyNeural",
+    "Ryan — British Male":               "en-GB-RyanNeural",
     "Thomas — British Male":             "en-GB-ThomasNeural",
-    "Christopher — US Male":             "en-US-ChristopherNeural",
-    "Eric — US Male":                    "en-US-EricNeural",
-    "Guy — US Male":                     "en-US-GuyNeural",
     "William — Australian Male":         "en-AU-WilliamNeural",
-    "Sonia — British Female":            "en-GB-SoniaNeural",
     "Aria — US Female":                  "en-US-AriaNeural",
+    "Sonia — British Female":            "en-GB-SoniaNeural",
 }
 
 RATES = {
-    "Normal":        "+0%",
-    "Slightly slow": "-10%",
-    "Slow (eerie)":  "-20%",
-    "Very slow":     "-30%",
+    "Natural (recommended)": "-3%",
+    "Slightly measured":     "-8%",
+    "Slow and deliberate":   "-15%",
+}
+
+# Pitch offset applied to all voices — slight lowering gives a darker, more
+# cinematic quality without making the voice sound processed or robotic.
+PITCHES = {
+    "Normal":        "+0Hz",
+    "Slightly deep": "-5Hz",
+    "Deep":          "-10Hz",
 }
 
 
@@ -81,24 +89,25 @@ def generate_narration_unturf(
 
 # ── Edge TTS (fallback) ────────────────────────────────────────────────────────
 
-async def _edge_synthesize(text: str, voice: str, rate: str, output_path: str) -> None:
-    communicate = edge_tts.Communicate(text, voice, rate=rate)
+async def _edge_synthesize(text: str, voice: str, rate: str, pitch: str, output_path: str) -> None:
+    communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
     await communicate.save(output_path)
 
 
 def generate_narration_edge(
     text:        str,
     output_path: str,
-    voice:       str = "en-GB-RyanNeural",
-    rate:        str = "-20%",
+    voice:       str = "en-US-AndrewNeural",
+    rate:        str = "-3%",
+    pitch:       str = "-5Hz",
     log=print,
 ) -> str:
     """Generate TTS using Edge TTS (free, no API key). Returns output_path."""
-    log(f"  TTS (Edge)  voice={voice!r}  rate={rate}")
+    log(f"  TTS (Edge)  voice={voice!r}  rate={rate}  pitch={pitch}")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        loop.run_until_complete(_edge_synthesize(text, voice, rate, output_path))
+        loop.run_until_complete(_edge_synthesize(text, voice, rate, pitch, output_path))
     finally:
         loop.close()
     return output_path
@@ -109,11 +118,12 @@ def generate_narration_edge(
 def generate_narration(
     text:          str,
     output_path:   str,
-    provider:      str  = "edge",      # "unturf" or "edge"
+    provider:      str  = "edge",
     api_key:       str  = "",
-    model:         str  = "",          # for unturf provider
-    voice:         str  = "en-GB-RyanNeural",
-    rate:          str  = "-20%",      # for edge provider
+    model:         str  = "",
+    voice:         str  = "en-US-AndrewNeural",
+    rate:          str  = "-3%",
+    pitch:         str  = "-5Hz",
     base_url:      str  = SPEECH_BASE_URL,
     log=print,
 ) -> str:
@@ -127,7 +137,7 @@ def generate_narration(
         except Exception as e:
             log(f"  Unturf TTS failed ({e}), falling back to Edge TTS...")
 
-    return generate_narration_edge(text, output_path, voice, rate, log)
+    return generate_narration_edge(text, output_path, voice, rate, pitch, log)
 
 
 # ── Duration helper ────────────────────────────────────────────────────────────

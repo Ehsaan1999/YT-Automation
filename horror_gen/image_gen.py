@@ -22,22 +22,22 @@ def _generate_pollinations(
     prompts:    list,
     output_dir: str,
     width:      int   = 576,
-    height:     int   = 1024,   # standard 9:16 SD portrait — avoids 500 errors
+    height:     int   = 1024,   # standard 9:16 portrait
+    model:      str   = "flux", # flux | zimage | seedream | kontext
     log=print,
 ) -> list:
     """
     Generate images via Pollinations.AI (100% free, no account needed).
-    Sends a GET request per prompt; response body is the raw image bytes.
-    Note: extreme resolutions (e.g. 1080x1920) cause 500 errors; use 576x1024.
+    New API (2025): https://gen.pollinations.ai/image/{prompt}
     """
     image_paths = []
     for i, prompt in enumerate(prompts, 1):
-        log(f"  [Image {i}/{len(prompts)}] Pollinations...")
+        log(f"  [Image {i}/{len(prompts)}] Pollinations ({model})...")
 
         encoded = urllib.parse.quote(prompt)
         url = (
-            f"https://image.pollinations.ai/prompt/{encoded}"
-            f"?width={width}&height={height}&nologo=true&seed={i * 7919}"
+            f"https://gen.pollinations.ai/image/{encoded}"
+            f"?width={width}&height={height}&model={model}&seed={i * 7919}&quality=high"
         )
 
         # Pollinations can be slow — retry up to 3 times
